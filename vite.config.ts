@@ -1,4 +1,4 @@
-/// <reference types="vitest/config" />
+import type {} from 'vitest/config';
 import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
@@ -7,60 +7,85 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
-const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+const dirname =
+	typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default defineConfig({
-  plugins: [tailwindcss(), sveltekit(), paraglideVitePlugin({
-    project: './project.inlang',
-    outdir: './src/lib/paraglide'
-  })],
-  test: {
-    expect: {
-      requireAssertions: true
-    },
-    projects: [{
-      extends: './vite.config.ts',
-      test: {
-        name: 'client',
-        browser: {
-          enabled: true,
-          provider: playwright(),
-          instances: [{
-            browser: 'chromium',
-            headless: true
-          }]
-        },
-        include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
-        exclude: ['src/lib/server/**']
-      }
-    }, {
-      extends: './vite.config.ts',
-      test: {
-        name: 'server',
-        environment: 'node',
-        include: ['src/**/*.{test,spec}.{js,ts}'],
-        exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
-      }
-    }, {
-      extends: true,
-      plugins: [
-      // The plugin will run tests for the stories defined in your Storybook config
-      // See options at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon#storybooktest
-      storybookTest({
-        configDir: path.join(dirname, '.storybook')
-      })],
-      test: {
-        name: 'storybook',
-        browser: {
-          enabled: true,
-          headless: true,
-          provider: playwright({}),
-          instances: [{
-            browser: 'chromium'
-          }]
-        }
-      }
-    }]
-  }
+	plugins: [
+		{
+			name: 'strip-tui-grid-legacy-css-hacks',
+			enforce: 'pre',
+			transform(code, id) {
+				if (!id.includes('/tui-grid/dist/tui-grid.css')) {
+					return;
+				}
+
+				return code.replace(/^\s*\*[a-z-]+:\s*[^;]+;\s*$/gim, '');
+			}
+		},
+		tailwindcss(),
+		sveltekit(),
+		paraglideVitePlugin({
+			project: './project.inlang',
+			outdir: './src/lib/paraglide'
+		})
+	],
+	test: {
+		expect: {
+			requireAssertions: true
+		},
+		projects: [
+			{
+				extends: './vite.config.ts',
+				test: {
+					name: 'client',
+					browser: {
+						enabled: true,
+						provider: playwright(),
+						instances: [
+							{
+								browser: 'chromium',
+								headless: true
+							}
+						]
+					},
+					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
+					exclude: ['src/lib/server/**']
+				}
+			},
+			{
+				extends: './vite.config.ts',
+				test: {
+					name: 'server',
+					environment: 'node',
+					include: ['src/**/*.{test,spec}.{js,ts}'],
+					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
+				}
+			},
+			{
+				extends: true,
+				plugins: [
+					// The plugin will run tests for the stories defined in your Storybook config
+					// See options at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon#storybooktest
+					storybookTest({
+						configDir: path.join(dirname, '.storybook')
+					})
+				],
+				test: {
+					name: 'storybook',
+					browser: {
+						enabled: true,
+						headless: true,
+						provider: playwright({}),
+						instances: [
+							{
+								browser: 'chromium'
+							}
+						]
+					}
+				}
+			}
+		]
+	}
 });

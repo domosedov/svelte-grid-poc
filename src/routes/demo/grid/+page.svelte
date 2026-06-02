@@ -1,8 +1,9 @@
 <script lang="ts">
 	import {
-		createSvelteTable,
-		flexRender,
-		getCoreRowModel,
+		createTable,
+		FlexRender,
+		tableFeatures,
+		columnVisibilityFeature,
 		type Cell,
 		type Column,
 		type ColumnDef,
@@ -10,6 +11,9 @@
 		type Table
 	} from '@tanstack/svelte-table';
 	import { SvelteSet } from 'svelte/reactivity';
+
+	const features = tableFeatures({ columnVisibilityFeature });
+	type Features = typeof features;
 
 	type Deal = {
 		id: string;
@@ -30,7 +34,7 @@
 		company: string;
 		columnLabel: string;
 		value: string;
-		cell: Cell<Deal, unknown>;
+		cell: Cell<Features, Deal, unknown>;
 	};
 
 	const data: Deal[] = [
@@ -90,7 +94,7 @@
 		}
 	];
 
-	const columns: ColumnDef<Deal>[] = [
+	const columns: ColumnDef<Features, Deal>[] = [
 		{
 			accessorKey: 'company',
 			header: 'Company',
@@ -123,10 +127,10 @@
 		}
 	];
 
-	const table = createSvelteTable<Deal>({
+	const table = createTable<Features, Deal>({
+		_features: features,
 		data,
 		columns,
-		getCoreRowModel: getCoreRowModel(),
 		getRowId: (row) => row.id
 	});
 
@@ -145,25 +149,25 @@
 		return content == null ? '' : String(content);
 	}
 
-	function getColumnLabel(column: Column<Deal, unknown>) {
+	function getColumnLabel(column: Column<Features, Deal, unknown>) {
 		const header = column.columnDef.header;
 
 		return typeof header === 'string' && header ? header : column.id;
 	}
 
-	function getHeaderText(column: Column<Deal, unknown>) {
+	function getHeaderText(column: Column<Features, Deal, unknown>) {
 		return getColumnLabel(column);
 	}
 
-	function getCellText(cell: Cell<Deal, unknown>) {
-		return renderText(flexRender(cell.column.columnDef.cell, cell.getContext()));
+	function getCellText(cell: Cell<Features, Deal, unknown>) {
+		return renderText(cell.renderValue());
 	}
 
-	function getGridTemplate(tableInstance: Table<Deal>) {
+	function getGridTemplate(tableInstance: Table<Features, Deal>) {
 		return `grid-template-columns: 4rem repeat(${tableInstance.getAllLeafColumns().length}, minmax(9rem, 1fr));`;
 	}
 
-	function getGridCells(tableInstance: Table<Deal>) {
+	function getGridCells(tableInstance: Table<Features, Deal>) {
 		return tableInstance.getRowModel().rows.flatMap((row, rowIndex) =>
 			row.getVisibleCells().map((cell, columnIndex) => ({
 				id: cell.id,
@@ -179,7 +183,7 @@
 		);
 	}
 
-	function getGridCellsByRow(row: Row<Deal>, rowIndex: number) {
+	function getGridCellsByRow(row: Row<Features, Deal>, rowIndex: number) {
 		return row.getVisibleCells().map((cell, columnIndex) => ({
 			id: cell.id,
 			rowId: row.id,
@@ -193,7 +197,7 @@
 		}));
 	}
 
-	function getCellById(tableInstance: Table<Deal>, cellId: string) {
+	function getCellById(tableInstance: Table<Features, Deal>, cellId: string) {
 		return getGridCells(tableInstance).find((cell) => cell.id === cellId);
 	}
 
@@ -215,7 +219,11 @@
 		replaceSet(selectedCells, cellIds);
 	}
 
-	function getRangeCellIds(tableInstance: Table<Deal>, startCellId: string, endCellId: string) {
+	function getRangeCellIds(
+		tableInstance: Table<Features, Deal>,
+		startCellId: string,
+		endCellId: string
+	) {
 		const start = getCellById(tableInstance, startCellId);
 		const end = getCellById(tableInstance, endCellId);
 
@@ -237,7 +245,11 @@
 			.map((cell) => cell.id);
 	}
 
-	function selectRange(tableInstance: Table<Deal>, startCellId: string, endCellId: string) {
+	function selectRange(
+		tableInstance: Table<Features, Deal>,
+		startCellId: string,
+		endCellId: string
+	) {
 		selectOnlyCells(getRangeCellIds(tableInstance, startCellId, endCellId));
 	}
 
@@ -246,7 +258,7 @@
 		anchorCellId = gridCell.id;
 	}
 
-	function selectRow(row: Row<Deal>, rowIndex: number) {
+	function selectRow(row: Row<Features, Deal>, rowIndex: number) {
 		selectedRows.clear();
 		selectedRows.add(row.id);
 		selectedColumns.clear();
@@ -257,7 +269,10 @@
 		anchorCellId = getGridCellsByRow(row, rowIndex)[0]?.id ?? null;
 	}
 
-	function selectColumn(tableInstance: Table<Deal>, column: Column<Deal, unknown>) {
+	function selectColumn(
+		tableInstance: Table<Features, Deal>,
+		column: Column<Features, Deal, unknown>
+	) {
 		selectedRows.clear();
 		selectedColumns.clear();
 		selectedColumns.add(column.id);
@@ -271,7 +286,7 @@
 			getGridCells(tableInstance).find((cell) => cell.columnId === column.id)?.id ?? null;
 	}
 
-	function selectAllColumns(tableInstance: Table<Deal>) {
+	function selectAllColumns(tableInstance: Table<Features, Deal>) {
 		replaceSet(
 			selectedColumns,
 			tableInstance.getAllLeafColumns().map((column) => column.id)
@@ -284,7 +299,7 @@
 		anchorCellId = getGridCells(tableInstance)[0]?.id ?? null;
 	}
 
-	function selectAllCells(tableInstance: Table<Deal>) {
+	function selectAllCells(tableInstance: Table<Features, Deal>) {
 		clearRowsAndColumns();
 		replaceSet(
 			selectedCells,
@@ -305,7 +320,11 @@
 		suppressNextClick = false;
 	}
 
-	function handleCellMouseDown(event: MouseEvent, tableInstance: Table<Deal>, gridCell: GridCell) {
+	function handleCellMouseDown(
+		event: MouseEvent,
+		tableInstance: Table<Features, Deal>,
+		gridCell: GridCell
+	) {
 		if (event.button !== 0 || event.shiftKey) return;
 
 		event.preventDefault();
@@ -316,7 +335,7 @@
 		selectRange(tableInstance, gridCell.id, gridCell.id);
 	}
 
-	function handleCellMouseEnter(tableInstance: Table<Deal>, gridCell: GridCell) {
+	function handleCellMouseEnter(tableInstance: Table<Features, Deal>, gridCell: GridCell) {
 		hoveredCellId = gridCell.id;
 
 		if (!isDragging || !dragAnchorCellId) return;
@@ -331,7 +350,11 @@
 		}
 	}
 
-	function handleCellClick(event: MouseEvent, tableInstance: Table<Deal>, gridCell: GridCell) {
+	function handleCellClick(
+		event: MouseEvent,
+		tableInstance: Table<Features, Deal>,
+		gridCell: GridCell
+	) {
 		if (suppressNextClick) {
 			suppressNextClick = false;
 			return;
@@ -345,7 +368,11 @@
 		selectSingleCell(gridCell);
 	}
 
-	function handleCellKeydown(event: KeyboardEvent, tableInstance: Table<Deal>, gridCell: GridCell) {
+	function handleCellKeydown(
+		event: KeyboardEvent,
+		tableInstance: Table<Features, Deal>,
+		gridCell: GridCell
+	) {
 		if (event.key !== 'Enter' && event.key !== ' ') return;
 
 		event.preventDefault();
@@ -406,14 +433,14 @@
 				<button
 					type="button"
 					class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:border-zinc-400 focus:ring-2 focus:ring-teal-500 focus:outline-none"
-					onclick={() => selectAllColumns($table)}
+					onclick={() => selectAllColumns(table)}
 				>
 					Выбрать все колонки
 				</button>
 				<button
 					type="button"
 					class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:border-zinc-400 focus:ring-2 focus:ring-teal-500 focus:outline-none"
-					onclick={() => selectAllCells($table)}
+					onclick={() => selectAllCells(table)}
 				>
 					Выбрать все ячейки
 				</button>
@@ -454,10 +481,10 @@
 					role="grid"
 					class="min-w-max select-none"
 					aria-label="Deals selection grid"
-					aria-rowcount={$table.getRowModel().rows.length + 1}
-					aria-colcount={$table.getAllLeafColumns().length + 1}
+					aria-rowcount={table.getRowModel().rows.length + 1}
+					aria-colcount={table.getAllLeafColumns().length + 1}
 				>
-					<div role="row" class="grid bg-zinc-50" style={getGridTemplate($table)} aria-rowindex="1">
+					<div role="row" class="grid bg-zinc-50" style={getGridTemplate(table)} aria-rowindex="1">
 						<div
 							role="columnheader"
 							class="border-r border-b border-zinc-200 px-3 py-3 text-xs font-semibold text-zinc-400"
@@ -466,7 +493,7 @@
 						>
 							#
 						</div>
-						{#each $table.getAllLeafColumns() as column, columnIndex (column.id)}
+						{#each table.getAllLeafColumns() as column, columnIndex (column.id)}
 							{@const columnSelected = isColumnSelected(column.id)}
 							<div
 								role="columnheader"
@@ -481,11 +508,11 @@
 								aria-selected={columnSelected}
 								aria-label={`Выбрать колонку ${getColumnLabel(column)}`}
 								data-selected-column={columnSelected ? 'true' : 'false'}
-								onclick={() => selectColumn($table, column)}
+								onclick={() => selectColumn(table, column)}
 								onkeydown={(event) => {
 									if (event.key === 'Enter' || event.key === ' ') {
 										event.preventDefault();
-										selectColumn($table, column);
+										selectColumn(table, column);
 									}
 								}}
 							>
@@ -494,12 +521,12 @@
 						{/each}
 					</div>
 
-					{#each $table.getRowModel().rows as row, rowIndex (row.id)}
+					{#each table.getRowModel().rows as row, rowIndex (row.id)}
 						{@const rowSelected = isRowSelected(row.id)}
 						<div
 							role="row"
 							class="grid bg-white"
-							style={getGridTemplate($table)}
+							style={getGridTemplate(table)}
 							aria-rowindex={rowIndex + 2}
 							data-selected-row={rowSelected ? 'true' : 'false'}
 						>
@@ -546,13 +573,13 @@
 									data-cell-id={gridCell.id}
 									data-selected-cell={cellSelected ? 'true' : 'false'}
 									data-hovered-cell={cellHovered ? 'true' : 'false'}
-									onmousedown={(event) => handleCellMouseDown(event, $table, gridCell)}
-									onmouseenter={() => handleCellMouseEnter($table, gridCell)}
+									onmousedown={(event) => handleCellMouseDown(event, table, gridCell)}
+									onmouseenter={() => handleCellMouseEnter(table, gridCell)}
 									onmouseleave={() => handleCellMouseLeave(gridCell)}
-									onclick={(event) => handleCellClick(event, $table, gridCell)}
-									onkeydown={(event) => handleCellKeydown(event, $table, gridCell)}
+									onclick={(event) => handleCellClick(event, table, gridCell)}
+									onkeydown={(event) => handleCellKeydown(event, table, gridCell)}
 								>
-									{gridCell.value}
+									<FlexRender cell={gridCell.cell} />
 								</div>
 							{/each}
 						</div>
