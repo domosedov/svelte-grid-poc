@@ -1,2 +1,23 @@
-<h1>Welcome to SvelteKit</h1>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<script>
+	import { resolve } from '$app/paths';
+</script>
+
+<div class="flex min-h-screen items-center justify-center bg-gray-100">
+	<nav class="flex gap-4">
+		<a
+			href={resolve('/demo/grid')}
+			class="rounded bg-blue-500 px-4 py-1 text-white transition-colors duration-150 hover:bg-blue-700"
+			>TanStack Grid</a
+		>
+		<a
+			href={resolve('/demo/tui-grid')}
+			class="rounded bg-blue-500 px-4 py-1 text-white transition-colors duration-150 hover:bg-blue-700"
+			>TUI Grid</a
+		>
+		<a
+			href={resolve('/demo/ag-grid')}
+			class="rounded bg-blue-500 px-4 py-1 text-white transition-colors duration-150 hover:bg-blue-700"
+			>AG Grid</a
+		>
+	</nav>
+</div>
