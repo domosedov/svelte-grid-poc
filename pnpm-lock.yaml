@@ -11,6 +11,9 @@ importers:
       '@tanstack/svelte-table':
         specifier: ^8.21.3
         version: 8.21.3(svelte@5.56.0(@typescript-eslint/types@8.60.0))
+      '@tanstack/table-core':
+        specifier: 8.21.3
+        version: 8.21.3
     devDependencies:
       '@chromatic-com/storybook':
         specifier: ^5.2.1

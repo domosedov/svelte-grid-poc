@@ -58,6 +58,7 @@
 		"vitest-browser-svelte": "^2.1.0"
 	},
 	"dependencies": {
-		"@tanstack/svelte-table": "^8.21.3"
+		"@tanstack/svelte-table": "^8.21.3",
+		"@tanstack/table-core": "8.21.3"
 	}
 }
