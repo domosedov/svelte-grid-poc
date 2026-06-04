@@ -24,5 +24,10 @@
 			class="rounded bg-blue-500 px-4 py-1 text-white transition-colors duration-150 hover:bg-blue-700"
 			>Revo</a
 		>
+		<a
+			href={resolve('/demo/svar')}
+			class="rounded bg-blue-500 px-4 py-1 text-white transition-colors duration-150 hover:bg-blue-700"
+			>Svar</a
+		>
 	</nav>
 </div>

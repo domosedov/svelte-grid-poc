@@ -256,9 +256,7 @@
 				</div>
 				<div>
 					<span data-testid="selection-sum">
-						{selectionSummary?.numericCells
-							? numberFormatter.format(selectionSummary.sum)
-							: '—'}
+						{selectionSummary?.numericCells ? numberFormatter.format(selectionSummary.sum) : '—'}
 					</span>
 					<small>сумма чисел</small>
 				</div>

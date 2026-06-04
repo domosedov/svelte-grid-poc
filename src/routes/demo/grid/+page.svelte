@@ -1,18 +1,20 @@
 <script lang="ts">
 	import {
 		createTable,
+		createExpandedRowModel,
 		FlexRender,
 		tableFeatures,
 		columnVisibilityFeature,
+		rowExpandingFeature,
 		type Cell,
 		type Column,
 		type ColumnDef,
 		type Row,
 		type Table
 	} from '@tanstack/svelte-table';
-	import { SvelteSet } from 'svelte/reactivity';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 
-	const features = tableFeatures({ columnVisibilityFeature });
+	const features = tableFeatures({ columnVisibilityFeature, rowExpandingFeature });
 	type Features = typeof features;
 
 	type CellType = 'text' | 'number' | 'date';
@@ -27,6 +29,7 @@
 		stage: string;
 		owner: string;
 		closeDate: string;
+		subRows?: Deal[];
 	};
 
 	type GridCell = {
@@ -41,28 +44,77 @@
 		cell: Cell<Features, Deal, unknown>;
 	};
 
+	// Hierarchical data: parent accounts roll up their child opportunities.
 	const initialData: Deal[] = [
 		{
-			id: 'acme-analytics',
-			company: 'Acme Analytics',
+			id: 'acme',
+			company: 'Acme Group',
 			segment: 'Enterprise',
 			region: 'North America',
-			arr: '$2.4M',
-			seats: 1200,
-			stage: 'Negotiation',
+			arr: '$4.1M',
+			seats: 2300,
+			stage: 'Multiple',
 			owner: 'Mira',
-			closeDate: '2026-03-15'
+			closeDate: '2026-06-30',
+			subRows: [
+				{
+					id: 'acme-analytics',
+					company: 'Acme Analytics',
+					segment: 'Enterprise',
+					region: 'North America',
+					arr: '$2.4M',
+					seats: 1200,
+					stage: 'Negotiation',
+					owner: 'Mira',
+					closeDate: '2026-03-15'
+				},
+				{
+					id: 'acme-security',
+					company: 'Acme Security',
+					segment: 'Enterprise',
+					region: 'North America',
+					arr: '$1.7M',
+					seats: 1100,
+					stage: 'Security review',
+					owner: 'Sara',
+					closeDate: '2026-05-12'
+				}
+			]
 		},
 		{
-			id: 'northstar-payments',
-			company: 'Northstar Payments',
+			id: 'northstar',
+			company: 'Northstar Holding',
 			segment: 'Mid-market',
 			region: 'Europe',
-			arr: '$840K',
-			seats: 320,
-			stage: 'Proposal',
+			arr: '$1.5M',
+			seats: 560,
+			stage: 'Multiple',
 			owner: 'Anton',
-			closeDate: '2026-04-02'
+			closeDate: '2026-05-20',
+			subRows: [
+				{
+					id: 'northstar-payments',
+					company: 'Northstar Payments',
+					segment: 'Mid-market',
+					region: 'Europe',
+					arr: '$840K',
+					seats: 320,
+					stage: 'Proposal',
+					owner: 'Anton',
+					closeDate: '2026-04-02'
+				},
+				{
+					id: 'northstar-lending',
+					company: 'Northstar Lending',
+					segment: 'Mid-market',
+					region: 'Europe',
+					arr: '$660K',
+					seats: 240,
+					stage: 'Discovery',
+					owner: 'Leah',
+					closeDate: '2026-05-20'
+				}
+			]
 		},
 		{
 			id: 'vector-logistics',
@@ -76,15 +128,39 @@
 			closeDate: '2026-05-20'
 		},
 		{
-			id: 'orbit-clinic',
-			company: 'Orbit Clinic',
+			id: 'orbit',
+			company: 'Orbit Health',
 			segment: 'SMB',
 			region: 'Europe',
-			arr: '$310K',
-			seats: 95,
-			stage: 'Qualified',
+			arr: '$0.9M',
+			seats: 360,
+			stage: 'Multiple',
 			owner: 'Niko',
-			closeDate: '2026-02-28'
+			closeDate: '2026-04-18',
+			subRows: [
+				{
+					id: 'orbit-clinic',
+					company: 'Orbit Clinic',
+					segment: 'SMB',
+					region: 'Europe',
+					arr: '$310K',
+					seats: 95,
+					stage: 'Qualified',
+					owner: 'Niko',
+					closeDate: '2026-02-28'
+				},
+				{
+					id: 'orbit-pharma',
+					company: 'Orbit Pharma',
+					segment: 'SMB',
+					region: 'Europe',
+					arr: '$590K',
+					seats: 265,
+					stage: 'Proposal',
+					owner: 'Oleg',
+					closeDate: '2026-04-18'
+				}
+			]
 		},
 		{
 			id: 'zenith-cloud',
@@ -96,21 +172,17 @@
 			stage: 'Security review',
 			owner: 'Sara',
 			closeDate: '2026-06-10'
-		},
-		{
-			id: 'craft-retail',
-			company: 'Craft Retail',
-			segment: 'Mid-market',
-			region: 'North America',
-			arr: '$620K',
-			seats: 240,
-			stage: 'Procurement',
-			owner: 'Oleg',
-			closeDate: '2026-03-30'
 		}
 	];
 
-	let data = $state<Deal[]>(initialData.map((row) => ({ ...row })));
+	function cloneTree(rows: Deal[]): Deal[] {
+		return rows.map((row) => ({
+			...row,
+			subRows: row.subRows ? cloneTree(row.subRows) : undefined
+		}));
+	}
+
+	let data = $state<Deal[]>(cloneTree(initialData));
 
 	const columnTypes: Record<string, CellType> = {
 		company: 'text',
@@ -157,6 +229,78 @@
 		return raw;
 	}
 
+	// --- Undo / redo history (Excel-like) ---------------------------------------
+	// Snapshots are immutable because every mutation rebuilds the touched path.
+	let undoStack = $state<Deal[][]>([]);
+	let redoStack = $state<Deal[][]>([]);
+	const HISTORY_LIMIT = 100;
+
+	const canUndo = $derived(undoStack.length > 0);
+	const canRedo = $derived(redoStack.length > 0);
+
+	/** Apply a new data tree and push the previous one onto the undo stack. */
+	function commitData(next: Deal[]) {
+		if (next === data) return;
+		undoStack = [...undoStack.slice(-(HISTORY_LIMIT - 1)), data];
+		redoStack = [];
+		data = next;
+	}
+
+	function undo() {
+		if (undoStack.length === 0) return;
+		const previous = undoStack[undoStack.length - 1];
+		undoStack = undoStack.slice(0, -1);
+		redoStack = [...redoStack, data];
+		data = previous;
+		flashStatus('Отменено');
+	}
+
+	function redo() {
+		if (redoStack.length === 0) return;
+		const nextData = redoStack[redoStack.length - 1];
+		redoStack = redoStack.slice(0, -1);
+		undoStack = [...undoStack, data];
+		data = nextData;
+		flashStatus('Возвращено');
+	}
+
+	type CellUpdates = Map<string, Map<string, string | number>>;
+
+	/** Immutably apply a rowId → (columnId → value) update map across the tree. */
+	function applyCellUpdates(rows: Deal[], updates: CellUpdates): Deal[] {
+		return rows.map((row) => {
+			let nextRow = row;
+
+			const columnUpdates = updates.get(row.id);
+			if (columnUpdates) {
+				const merged = { ...row } as Record<string, string | number | Deal[] | undefined>;
+				for (const [columnId, value] of columnUpdates) merged[columnId] = value;
+				nextRow = merged as Deal;
+			}
+
+			if (row.subRows?.length) {
+				const nextSub = applyCellUpdates(row.subRows, updates);
+				if (nextSub !== row.subRows) nextRow = { ...nextRow, subRows: nextSub };
+			}
+
+			return nextRow;
+		});
+	}
+
+	function addUpdate(
+		updates: CellUpdates,
+		rowId: string,
+		columnId: string,
+		value: string | number
+	) {
+		let columnUpdates = updates.get(rowId);
+		if (!columnUpdates) {
+			columnUpdates = new SvelteMap();
+			updates.set(rowId, columnUpdates);
+		}
+		columnUpdates.set(columnId, value);
+	}
+
 	const columns: ColumnDef<Features, Deal>[] = [
 		{
 			accessorKey: 'company',
@@ -200,14 +344,66 @@
 		}
 	];
 
+	let expanded = $state<true | Record<string, boolean>>(true);
+
+	// --- Search in the "company" column -----------------------------------------
+	let companyFilter = $state('');
+
+	/**
+	 * Filters the tree by company name, keeping the parent chain of every match.
+	 * A node that matches itself keeps its full subtree.
+	 */
+	function filterByCompany(rows: Deal[], query: string): Deal[] {
+		const q = query.trim().toLowerCase();
+		if (!q) return rows;
+
+		const walk = (list: Deal[]): Deal[] => {
+			const out: Deal[] = [];
+			for (const row of list) {
+				if (row.company.toLowerCase().includes(q)) {
+					out.push(row);
+				} else if (row.subRows?.length) {
+					const kids = walk(row.subRows);
+					if (kids.length) out.push({ ...row, subRows: kids });
+				}
+			}
+			return out;
+		};
+
+		return walk(rows);
+	}
+
+	const filteredData = $derived(filterByCompany(data, companyFilter));
+
 	const table = createTable<Features, Deal>({
 		_features: features,
+		_rowModels: {
+			expandedRowModel: createExpandedRowModel()
+		},
 		get data() {
-			return data;
+			return filteredData;
 		},
 		columns,
-		getRowId: (row) => row.id
+		getRowId: (row) => row.id,
+		getSubRows: (row) => row.subRows,
+		getRowCanExpand: (row) => Boolean(row.subRows?.length),
+		get state() {
+			// Force every branch open while searching so matches stay visible.
+			return { expanded: companyFilter.trim() ? true : expanded };
+		},
+		onExpandedChange: (updater) => {
+			expanded = typeof updater === 'function' ? updater(expanded) : updater;
+		}
 	});
+
+	function setAllExpanded(value: boolean) {
+		expanded = value ? true : {};
+	}
+
+	function onCompanyFilterInput() {
+		// Selection indices change when rows are filtered; drop the stale range.
+		clearSelection();
+	}
 
 	const selectedRows = new SvelteSet<string>();
 	const selectedColumns = new SvelteSet<string>();
@@ -367,19 +563,6 @@
 			getGridCells(tableInstance).find((cell) => cell.columnId === column.id)?.id ?? null;
 	}
 
-	function selectAllColumns(tableInstance: Table<Features, Deal>) {
-		replaceSet(
-			selectedColumns,
-			tableInstance.getAllLeafColumns().map((column) => column.id)
-		);
-		selectedRows.clear();
-		replaceSet(
-			selectedCells,
-			getGridCells(tableInstance).map((cell) => cell.id)
-		);
-		anchorCellId = getGridCells(tableInstance)[0]?.id ?? null;
-	}
-
 	function selectAllCells(tableInstance: Table<Features, Deal>) {
 		clearRowsAndColumns();
 		replaceSet(
@@ -403,21 +586,46 @@
 		editingCellId = null;
 	}
 
-	let statusMessage = $state<string | null>(null);
-	let statusTimeout: ReturnType<typeof setTimeout> | null = null;
+	type Toast = { id: number; message: string; tone: 'info' | 'success' };
+	let toasts = $state<Toast[]>([]);
+	let toastSeq = 0;
 
-	function flashStatus(message: string) {
-		statusMessage = message;
+	function flashStatus(message: string, tone: 'info' | 'success' = 'info') {
+		const id = ++toastSeq;
+		toasts = [...toasts, { id, message, tone }];
+		setTimeout(() => {
+			toasts = toasts.filter((toast) => toast.id !== id);
+		}, 2400);
+	}
 
-		if (statusTimeout) clearTimeout(statusTimeout);
-		statusTimeout = setTimeout(() => {
-			statusMessage = null;
-		}, 1800);
+	function dismissToast(id: number) {
+		toasts = toasts.filter((toast) => toast.id !== id);
 	}
 
 	function getSelectedGridCells() {
 		return getGridCells(table).filter((cell) => selectedCells.has(cell.id));
 	}
+
+	// Excel-like status bar: aggregate numeric cells in the current selection.
+	const selectionStats = $derived.by(() => {
+		void data;
+		void selectedCells.size;
+		const numbers: number[] = [];
+		for (const cell of getSelectedGridCells()) {
+			if (getColumnType(cell.columnId) !== 'number') continue;
+			const numeric = Number(cell.cell.getValue());
+			if (Number.isFinite(numeric)) numbers.push(numeric);
+		}
+		if (numbers.length === 0) return null;
+		const sum = numbers.reduce((total, value) => total + value, 0);
+		return {
+			count: numbers.length,
+			sum,
+			avg: sum / numbers.length,
+			min: Math.min(...numbers),
+			max: Math.max(...numbers)
+		};
+	});
 
 	function getSelectionBounds(cells: GridCell[]) {
 		let rowMin = Infinity;
@@ -464,7 +672,7 @@
 
 		try {
 			await navigator.clipboard.writeText(lines.join('\n'));
-			flashStatus(`Скопировано ячеек: ${cells.length}`);
+			flashStatus(`Скопировано ячеек: ${cells.length}`, 'success');
 		} catch {
 			flashStatus('Не удалось скопировать в буфер обмена');
 		}
@@ -500,7 +708,7 @@
 
 		const columnIds = table.getAllLeafColumns().map((column) => column.id);
 		const rows = table.getRowModel().rows;
-		const next = data.map((row) => ({ ...row }));
+		const updates: CellUpdates = new SvelteMap();
 		const pastedCellIds: string[] = [];
 
 		for (let r = 0; r < matrix.length; r++) {
@@ -508,25 +716,20 @@
 			if (targetRowIndex >= rows.length) break;
 
 			const rowId = rows[targetRowIndex].id;
-			const dataIndex = next.findIndex((row) => row.id === rowId);
-			if (dataIndex === -1) continue;
 
 			for (let c = 0; c < matrix[r].length; c++) {
 				const targetColumnIndex = startColumn + c;
 				if (targetColumnIndex >= columnIds.length) break;
 
 				const columnId = columnIds[targetColumnIndex];
-				(next[dataIndex] as Record<string, string | number>)[columnId] = coerceValue(
-					columnId,
-					matrix[r][c]
-				);
+				addUpdate(updates, rowId, columnId, coerceValue(columnId, matrix[r][c]));
 				pastedCellIds.push(`${rowId}_${columnId}`);
 			}
 		}
 
 		if (pastedCellIds.length === 0) return;
 
-		data = next;
+		commitData(applyCellUpdates(data, updates));
 		selectOnlyCells(pastedCellIds);
 		anchorCellId = pastedCellIds[0];
 		flashStatus(`Вставлено ячеек: ${pastedCellIds.length}`);
@@ -611,9 +814,9 @@
 	}
 
 	function writeCellValue(rowId: string, columnId: string, raw: string) {
-		data = data.map((row) =>
-			row.id === rowId ? { ...row, [columnId]: coerceValue(columnId, raw) } : row
-		);
+		const updates: CellUpdates = new Map();
+		addUpdate(updates, rowId, columnId, coerceValue(columnId, raw));
+		commitData(applyCellUpdates(data, updates));
 	}
 
 	function commitEdit(move: 'down' | 'up' | 'left' | 'right' | 'stay') {
@@ -671,36 +874,67 @@
 		const cells = getSelectedGridCells();
 		if (cells.length === 0) return;
 
-		const selectedIds = new Set(cells.map((cell) => cell.id));
-		const columnIds = table.getAllLeafColumns().map((column) => column.id);
+		const updates: CellUpdates = new Map();
+		for (const cell of cells) {
+			addUpdate(updates, cell.rowId, cell.columnId, coerceValue(cell.columnId, ''));
+		}
 
-		data = data.map((row) => {
-			const updated = { ...row } as Record<string, string | number>;
-			let changed = false;
-
-			for (const columnId of columnIds) {
-				if (selectedIds.has(`${row.id}_${columnId}`)) {
-					updated[columnId] = coerceValue(columnId, '');
-					changed = true;
-				}
-			}
-
-			return changed ? (updated as Deal) : row;
-		});
-
+		commitData(applyCellUpdates(data, updates));
 		flashStatus(`Очищено ячеек: ${cells.length}`);
+	}
+
+	/** Cut = copy the selection, then clear it (Excel Ctrl+X). */
+	async function cutSelection() {
+		if (selectedCells.size === 0) return;
+		await copySelection();
+		clearSelectedCells();
+	}
+
+	/**
+	 * Fill the whole selection from its first row (Ctrl+D) or first column
+	 * (Ctrl+R), mirroring Excel's fill-down / fill-right.
+	 */
+	function fillSelection(direction: 'down' | 'right') {
+		const cells = getSelectedGridCells();
+		if (cells.length < 2) return;
+
+		const sourceByKey = new Map(
+			cells.map((cell) => [`${cell.rowIndex}:${cell.columnIndex}`, cell])
+		);
+		const { rowMin, columnMin } = getSelectionBounds(cells);
+		const updates: CellUpdates = new Map();
+
+		for (const cell of cells) {
+			const source =
+				direction === 'down'
+					? sourceByKey.get(`${rowMin}:${cell.columnIndex}`)
+					: sourceByKey.get(`${cell.rowIndex}:${columnMin}`);
+			if (!source || source.id === cell.id) continue;
+			addUpdate(updates, cell.rowId, cell.columnId, coerceValue(cell.columnId, source.value));
+		}
+
+		if (updates.size === 0) return;
+		commitData(applyCellUpdates(data, updates));
+		flashStatus(direction === 'down' ? 'Заполнено вниз' : 'Заполнено вправо');
 	}
 
 	function isPrintableKey(event: KeyboardEvent) {
 		return (
-			event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' '
+			event.key.length === 1 &&
+			!event.ctrlKey &&
+			!event.metaKey &&
+			!event.altKey &&
+			event.key !== ' '
 		);
 	}
 
 	function handleWindowKeydown(event: KeyboardEvent) {
+		// Editing input owns the keyboard (Ctrl+Z inside a field should undo text).
+		if (editingCellId) return;
+
 		const modifier = event.metaKey || event.ctrlKey;
 		if (!modifier) {
-			if (event.key === 'Escape' && !editingCellId) clearSelection();
+			if (event.key === 'Escape') clearSelection();
 			return;
 		}
 
@@ -710,12 +944,29 @@
 			if (selectedCells.size === 0) return;
 			event.preventDefault();
 			void copySelection();
+		} else if (key === 'x') {
+			if (selectedCells.size === 0) return;
+			event.preventDefault();
+			void cutSelection();
 		} else if (key === 'v') {
 			event.preventDefault();
 			void pasteSelection();
 		} else if (key === 'a') {
 			event.preventDefault();
 			selectAllCells(table);
+		} else if (key === 'd') {
+			event.preventDefault();
+			fillSelection('down');
+		} else if (key === 'r') {
+			event.preventDefault();
+			fillSelection('right');
+		} else if (key === 'z') {
+			event.preventDefault();
+			if (event.shiftKey) redo();
+			else undo();
+		} else if (key === 'y') {
+			event.preventDefault();
+			redo();
 		}
 	}
 
@@ -814,11 +1065,7 @@
 				return;
 			case 'End':
 				event.preventDefault();
-				moveActiveTo(
-					extend ? gridCell.rowIndex : getRowCount() - 1,
-					getColumnCount() - 1,
-					extend
-				);
+				moveActiveTo(extend ? gridCell.rowIndex : getRowCount() - 1, getColumnCount() - 1, extend);
 				return;
 			case 'Enter':
 			case 'F2':
@@ -893,21 +1140,49 @@
 			<div>
 				<p class="text-sm font-medium text-teal-700">Svelte 5 + @tanstack/svelte-table</p>
 				<h1 class="mt-1 text-3xl font-semibold tracking-normal">TanStack grid selection demo</h1>
-				<p class="mt-2 max-w-2xl text-sm text-zinc-500">
+				<p class="mt-2 max-w-3xl text-sm text-zinc-500">
 					<kbd class="rounded border border-zinc-300 bg-zinc-50 px-1 font-mono text-xs">↑↓←→</kbd>
-					— навигация,
-					<kbd class="rounded border border-zinc-300 bg-zinc-50 px-1 font-mono text-xs">Shift + ↑↓←→</kbd>
-					— выделение диапазона,
+					навигация,
+					<kbd class="rounded border border-zinc-300 bg-zinc-50 px-1 font-mono text-xs"
+						>Shift + ↑↓←→</kbd
+					>
+					диапазон,
 					<kbd class="rounded border border-zinc-300 bg-zinc-50 px-1 font-mono text-xs">Enter</kbd>
-					/ двойной клик — редактирование (текст / число / дата),
+					/ двойной клик — редактирование,
+					<kbd class="rounded border border-zinc-300 bg-zinc-50 px-1 font-mono text-xs"
+						>⌘/Ctrl + C / X / V</kbd
+					>
+					копировать / вырезать / вставить,
+					<kbd class="rounded border border-zinc-300 bg-zinc-50 px-1 font-mono text-xs"
+						>⌘/Ctrl + D / R</kbd
+					>
+					заполнить вниз / вправо,
+					<kbd class="rounded border border-zinc-300 bg-zinc-50 px-1 font-mono text-xs"
+						>⌘/Ctrl + Z / Y</kbd
+					>
+					отменить / вернуть,
 					<kbd class="rounded border border-zinc-300 bg-zinc-50 px-1 font-mono text-xs">Delete</kbd>
-					— очистить,
-					<kbd class="rounded border border-zinc-300 bg-zinc-50 px-1 font-mono text-xs">⌘/Ctrl + C / V</kbd>
-					— копировать / вставить (Excel-like).
+					очистить. Группы строк раскрываются ▸.
 				</p>
 			</div>
 
 			<div class="flex flex-wrap gap-2">
+				<button
+					type="button"
+					class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:border-zinc-400 focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+					disabled={!canUndo}
+					onclick={undo}
+				>
+					↶ Отменить
+				</button>
+				<button
+					type="button"
+					class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:border-zinc-400 focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+					disabled={!canRedo}
+					onclick={redo}
+				>
+					↷ Вернуть
+				</button>
 				<button
 					type="button"
 					class="rounded-md border border-teal-300 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-800 shadow-sm hover:border-teal-400 focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
@@ -918,6 +1193,14 @@
 				</button>
 				<button
 					type="button"
+					class="rounded-md border border-teal-300 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-800 shadow-sm hover:border-teal-400 focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+					disabled={selectedCells.size === 0}
+					onclick={() => void cutSelection()}
+				>
+					Вырезать
+				</button>
+				<button
+					type="button"
 					class="rounded-md border border-teal-300 bg-teal-50 px-3 py-2 text-sm font-medium text-teal-800 shadow-sm hover:border-teal-400 focus:ring-2 focus:ring-teal-500 focus:outline-none"
 					onclick={() => void pasteSelection()}
 				>
@@ -925,17 +1208,33 @@
 				</button>
 				<button
 					type="button"
-					class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:border-zinc-400 focus:ring-2 focus:ring-teal-500 focus:outline-none"
-					onclick={() => selectAllColumns(table)}
+					class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:border-zinc-400 focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+					disabled={selectedCells.size < 2}
+					onclick={() => fillSelection('down')}
 				>
-					Выбрать все колонки
+					Заполнить вниз
+				</button>
+				<button
+					type="button"
+					class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:border-zinc-400 focus:ring-2 focus:ring-teal-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+					disabled={selectedCells.size < 2}
+					onclick={() => fillSelection('right')}
+				>
+					Заполнить вправо
 				</button>
 				<button
 					type="button"
 					class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:border-zinc-400 focus:ring-2 focus:ring-teal-500 focus:outline-none"
-					onclick={() => selectAllCells(table)}
+					onclick={() => setAllExpanded(true)}
 				>
-					Выбрать все ячейки
+					Развернуть все
+				</button>
+				<button
+					type="button"
+					class="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 shadow-sm hover:border-zinc-400 focus:ring-2 focus:ring-teal-500 focus:outline-none"
+					onclick={() => setAllExpanded(false)}
+				>
+					Свернуть все
 				</button>
 				<button
 					type="button"
@@ -946,17 +1245,6 @@
 				</button>
 			</div>
 		</div>
-
-		{#if statusMessage}
-			<div
-				class="rounded-md border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-medium text-teal-800"
-				role="status"
-				aria-live="polite"
-				data-testid="status-message"
-			>
-				{statusMessage}
-			</div>
-		{/if}
 
 		<div class="grid gap-3 md:grid-cols-3" aria-label="Selection counters">
 			<div class="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
@@ -978,6 +1266,32 @@
 				</p>
 			</div>
 		</div>
+
+		{#if selectionStats}
+			<div
+				class="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm text-zinc-700 shadow-sm"
+				aria-label="Selection aggregates"
+				data-testid="selection-stats"
+			>
+				<span><span class="text-zinc-500">Count:</span> {selectionStats.count}</span>
+				<span
+					><span class="text-zinc-500">Sum:</span>
+					{numberFormatter.format(selectionStats.sum)}</span
+				>
+				<span>
+					<span class="text-zinc-500">Avg:</span>
+					{numberFormatter.format(Math.round(selectionStats.avg))}
+				</span>
+				<span
+					><span class="text-zinc-500">Min:</span>
+					{numberFormatter.format(selectionStats.min)}</span
+				>
+				<span
+					><span class="text-zinc-500">Max:</span>
+					{numberFormatter.format(selectionStats.max)}</span
+				>
+			</div>
+		{/if}
 
 		<div class="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
 			<div class="overflow-x-auto">
@@ -1022,6 +1336,20 @@
 								}}
 							>
 								{getHeaderText(column)}
+								{#if column.id === 'company'}
+									<input
+										type="search"
+										class="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-xs font-normal tracking-normal text-zinc-800 normal-case shadow-sm focus:border-sky-400 focus:ring-1 focus:ring-sky-300 focus:outline-none"
+										placeholder="Поиск по названию…"
+										autocomplete="off"
+										bind:value={companyFilter}
+										oninput={onCompanyFilterInput}
+										data-testid="company-search"
+										onmousedown={(event) => event.stopPropagation()}
+										onclick={(event) => event.stopPropagation()}
+										onkeydown={(event) => event.stopPropagation()}
+									/>
+								{/if}
 							</div>
 						{/each}
 					</div>
@@ -1064,6 +1392,8 @@
 								{@const cellActive = activeCellId === gridCell.id}
 								{@const cellEditing = editingCellId === gridCell.id}
 								{@const cellType = getColumnType(gridCell.columnId)}
+								{@const treeRow = gridCell.cell.row}
+								{@const isTreeColumn = gridCell.columnIndex === 0}
 								<div
 									role="gridcell"
 									tabindex="0"
@@ -1092,7 +1422,11 @@
 								>
 									{#if cellEditing}
 										<input
-											type={cellType === 'number' ? 'number' : cellType === 'date' ? 'date' : 'text'}
+											type={cellType === 'number'
+												? 'number'
+												: cellType === 'date'
+													? 'date'
+													: 'text'}
 											class="absolute inset-0 h-full w-full bg-white px-3 py-2 text-sm text-zinc-900 ring-2 ring-emerald-500 ring-inset outline-none"
 											value={editingValue}
 											onkeydown={handleEditKeydown}
@@ -1100,6 +1434,34 @@
 											onmousedown={(event) => event.stopPropagation()}
 											ondblclick={(event) => event.stopPropagation()}
 										/>
+									{:else if isTreeColumn}
+										<div
+											class="flex items-center gap-2"
+											style={`padding-left: ${treeRow.depth * 22}px;`}
+										>
+											{#if treeRow.getCanExpand()}
+												<button
+													type="button"
+													class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-zinc-300 bg-white text-zinc-600 shadow-sm hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
+													aria-label={treeRow.getIsExpanded() ? 'Свернуть' : 'Развернуть'}
+													aria-expanded={treeRow.getIsExpanded()}
+													onmousedown={(event) => event.stopPropagation()}
+													onclick={(event) => {
+														event.stopPropagation();
+														treeRow.toggleExpanded();
+													}}
+												>
+													<span class="text-base leading-none"
+														>{treeRow.getIsExpanded() ? '▾' : '▸'}</span
+													>
+												</button>
+											{:else}
+												<span class="inline-block w-8 shrink-0"></span>
+											{/if}
+											<span class={treeRow.getCanExpand() ? 'font-semibold' : ''}>
+												<FlexRender cell={gridCell.cell} />
+											</span>
+										</div>
 									{:else}
 										<FlexRender cell={gridCell.cell} />
 									{/if}
@@ -1107,8 +1469,52 @@
 							{/each}
 						</div>
 					{/each}
+
+					{#if table.getRowModel().rows.length === 0}
+						<div
+							class="border-b border-zinc-200 px-4 py-10 text-center text-sm text-zinc-500"
+							role="row"
+							data-testid="empty-state"
+						>
+							Нет компаний по запросу «{companyFilter}»
+						</div>
+					{/if}
 				</div>
 			</div>
 		</div>
 	</section>
 </main>
+
+<!-- Toast notifications -->
+<div
+	class="pointer-events-none fixed right-4 bottom-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2"
+	role="region"
+	aria-label="Уведомления"
+	aria-live="polite"
+>
+	{#each toasts as toast (toast.id)}
+		<div
+			class={[
+				'pointer-events-auto flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium shadow-lg',
+				toast.tone === 'success'
+					? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+					: 'border-zinc-200 bg-white text-zinc-800'
+			]}
+			role="status"
+			data-testid="toast"
+		>
+			<span class="mt-0.5 shrink-0" aria-hidden="true">
+				{toast.tone === 'success' ? '✅' : 'ℹ️'}
+			</span>
+			<span class="flex-1">{toast.message}</span>
+			<button
+				type="button"
+				class="shrink-0 rounded text-zinc-400 hover:text-zinc-700"
+				aria-label="Закрыть уведомление"
+				onclick={() => dismissToast(toast.id)}
+			>
+				✕
+			</button>
+		</div>
+	{/each}
+</div>

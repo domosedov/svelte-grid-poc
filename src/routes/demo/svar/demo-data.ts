@@ -278,11 +278,7 @@ export const SVAR_DEMO_TREE: SvarRow[] = [
  * chain of every match. A node that matches itself keeps its full subtree.
  * Branches are forced open while a query is active so matches stay visible.
  */
-export function filterTreeByName(
-	rows: SvarRow[],
-	query: string,
-	openAll = true
-): SvarRow[] {
+export function filterTreeByName(rows: SvarRow[], query: string, openAll = true): SvarRow[] {
 	const q = query.trim().toLowerCase();
 	const forceOpen = q.length > 0;
 
