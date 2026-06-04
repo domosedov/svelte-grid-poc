@@ -19,5 +19,10 @@
 			class="rounded bg-blue-500 px-4 py-1 text-white transition-colors duration-150 hover:bg-blue-700"
 			>AG Grid</a
 		>
+		<a
+			href={resolve('/demo/revo')}
+			class="rounded bg-blue-500 px-4 py-1 text-white transition-colors duration-150 hover:bg-blue-700"
+			>Revo</a
+		>
 	</nav>
 </div>
