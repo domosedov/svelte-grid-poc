@@ -32,3 +32,26 @@ test('filters RevoGrid demo rows by employee name', async ({ page }) => {
 	await expect(page.getByTestId('visible-row-count')).toHaveText('0 из 12');
 	await expect(page.getByText('Нет сотрудников по такому фильтру')).toBeVisible();
 });
+
+test('opens typed editors for date and number cells', async ({ page }) => {
+	await page.goto('/demo/revo');
+
+	const grid = page.locator('revo-grid');
+	await expect(grid).toBeVisible();
+
+	await grid.evaluate((element) =>
+		(
+			element as HTMLElement & { setCellEdit(row: number, prop: string): Promise<void> }
+		).setCellEdit(0, 'budget')
+	);
+	await expect(page.locator('revogr-edit input')).toHaveAttribute('type', 'number');
+
+	await page.keyboard.press('Escape');
+
+	await grid.evaluate((element) =>
+		(
+			element as HTMLElement & { setCellEdit(row: number, prop: string): Promise<void> }
+		).setCellEdit(0, 'startDate')
+	);
+	await expect(page.locator('revogr-edit input')).toHaveAttribute('type', 'date');
+});

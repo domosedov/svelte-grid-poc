@@ -25,33 +25,39 @@
 			header: 'Name',
 			name: 'name',
 			width: 260,
-			filter: 'text'
+			filter: 'text',
+			editor: 'text'
 		},
 		{
 			header: 'Email',
 			name: 'email',
-			width: 230
+			width: 230,
+			editor: 'text'
 		},
 		{
 			header: 'Role',
 			name: 'role',
-			width: 170
+			width: 170,
+			editor: 'text'
 		},
 		{
 			header: 'Status',
 			name: 'status',
-			width: 120
+			width: 120,
+			editor: 'text'
 		},
 		{
 			header: 'Budget',
 			name: 'budget',
 			align: 'right',
-			width: 130
+			width: 130,
+			editor: 'text'
 		},
 		{
 			header: 'Created',
 			name: 'createdAt',
-			width: 120
+			width: 120,
+			editor: 'text'
 		}
 	];
 
@@ -65,6 +71,36 @@
 
 	function getGridData() {
 		return rows;
+	}
+
+	/** Записать отредактированное значение обратно в модель строк (дерево) по id. */
+	function updateRowValue(id: string, columnName: string, value: string) {
+		const apply = (list: DemoTreeRow[]): DemoTreeRow[] =>
+			list.map((row) => {
+				if (row.id === id) {
+					return { ...row, [columnName]: value };
+				}
+
+				if (row._children) {
+					return { ...row, _children: apply(row._children) };
+				}
+
+				return row;
+			});
+
+		rows = apply(rows);
+	}
+
+	type GridChange = { rowKey: string | number; columnName: string; value: unknown };
+
+	function handleAfterChange(event: { changes?: GridChange[] }) {
+		for (const change of event.changes ?? []) {
+			updateRowValue(
+				String(change.rowKey),
+				change.columnName,
+				change.value == null ? '' : String(change.value)
+			);
+		}
 	}
 
 	function applyNameFilter(value = nameFilter) {
@@ -175,6 +211,7 @@
 			});
 
 			grid.expandAll();
+			grid.on('afterChange', handleAfterChange as (ev: unknown) => void);
 			window.addEventListener('resize', refreshLayout);
 			requestAnimationFrame(refreshLayout);
 		});
@@ -198,6 +235,7 @@
 			<div>
 				<p class="eyebrow">Demo</p>
 				<h1 id="tui-grid-title">TUI Grid tree demo</h1>
+				<p class="hint">Двойной клик по ячейке — редактирование значения.</p>
 			</div>
 
 			<div class="metrics" aria-label="Tree grid statistics">
@@ -274,6 +312,12 @@
 		font-size: clamp(1.8rem, 3vw, 2.65rem);
 		font-weight: 750;
 		letter-spacing: 0;
+	}
+
+	.hint {
+		margin: 8px 0 0;
+		color: #64748b;
+		font-size: 0.86rem;
 	}
 
 	.metrics {

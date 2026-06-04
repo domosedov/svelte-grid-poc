@@ -1,14 +1,26 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import {
+		Editor,
 		RevoGrid,
 		Template,
 		type ColumnRegular,
+		type Editors,
 		type GroupingOptions
 	} from '@revolist/svelte-datagrid';
 
+	import DateEditor from './DateEditor.svelte';
+	import NumberEditor from './NumberEditor.svelte';
 	import StatusCell from './StatusCell.svelte';
 	import { filterRowsByName, REVO_DEMO_ROWS, type RevoDemoRow } from './demo-data';
+
+	const DATE_EDITOR = 'date';
+	const NUMBER_EDITOR = 'number';
+
+	const editors: Editors = {
+		[DATE_EDITOR]: Editor(DateEditor),
+		[NUMBER_EDITOR]: Editor(NumberEditor)
+	};
 
 	const moneyFormatter = new Intl.NumberFormat('ru-RU', {
 		style: 'currency',
@@ -47,6 +59,7 @@
 			name: 'Бюджет',
 			size: 140,
 			sortable: true,
+			editor: NUMBER_EDITOR,
 			cellTemplate: (h, { value }) =>
 				h(
 					'span',
@@ -65,6 +78,7 @@
 			name: 'Прогресс',
 			size: 132,
 			sortable: true,
+			editor: NUMBER_EDITOR,
 			cellTemplate: (h, { value }) =>
 				h(
 					'span',
@@ -84,6 +98,7 @@
 			name: 'Старт',
 			size: 150,
 			sortable: true,
+			editor: DATE_EDITOR,
 			cellTemplate: (h, { value }) => h('span', {}, dateFormatter.format(new Date(String(value))))
 		}
 	];
@@ -172,6 +187,7 @@
 				<RevoGrid
 					source={filteredRows}
 					{columns}
+					{editors}
 					{grouping}
 					rowHeaders={true}
 					range={true}

@@ -12,6 +12,9 @@ const dirname =
 
 // More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default defineConfig({
+	server: {
+		port: 3000
+	},
 	plugins: [
 		{
 			name: 'strip-tui-grid-legacy-css-hacks',

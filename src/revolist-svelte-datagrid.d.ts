@@ -11,6 +11,8 @@ declare module '@revolist/svelte-datagrid' {
 		props?: Record<string, unknown>,
 		children?: unknown
 	) => T;
+	export type EditorCtr = unknown;
+	export type Editors = Record<string, EditorCtr>;
 
 	export interface ColumnDataSchemaModel<
 		TModel extends DataType = DataType,
@@ -53,6 +55,7 @@ declare module '@revolist/svelte-datagrid' {
 		maxSize?: number;
 		sortable?: boolean;
 		filter?: boolean | string | string[];
+		editor?: string | EditorCtr;
 		readonly?:
 			| boolean
 			| ((params: ColumnDataSchemaModel<TModel, ColumnRegular<P, TModel>>) => boolean);
@@ -74,9 +77,18 @@ declare module '@revolist/svelte-datagrid' {
 		[key: string]: unknown;
 	};
 
+	export type EditorType = Omit<Partial<ColumnDataSchemaModel>, 'column'> & {
+		val?: unknown;
+		column: ColumnDataSchemaModel;
+		save: (value: unknown, preventFocus?: boolean) => void;
+		close: (focusNext?: boolean) => void;
+		[key: string]: unknown;
+	};
+
 	export type RevoGridProps = {
 		source?: unknown[];
 		columns?: unknown;
+		editors?: Editors;
 		grouping?: unknown;
 		rowHeaders?: boolean | object;
 		range?: boolean;
@@ -95,4 +107,6 @@ declare module '@revolist/svelte-datagrid' {
 		component: Component<TProps>,
 		customProps?: Partial<TProps>
 	): CellTemplate<ModelFromProps<TProps>>;
+
+	export function Editor(component: Component<EditorType>): EditorCtr;
 }
