@@ -1,38 +1,4 @@
 allowBuilds:
   '@tailwindcss/oxide': true
   esbuild: true
-minimumReleaseAgeExclude:
-  - '@tanstack/svelte-table@9.0.0-alpha.52'
-  - '@tanstack/table-core@9.0.0-alpha.52'
-  - '@inlang/paraglide-js@2.18.2'
-  - '@storybook/addon-a11y@10.4.2'
-  - '@storybook/addon-docs@10.4.2'
-  - '@storybook/addon-vitest@10.4.2'
-  - '@storybook/builder-vite@10.4.2'
-  - '@storybook/csf-plugin@10.4.2'
-  - '@storybook/react-dom-shim@10.4.2'
-  - '@storybook/svelte-vite@10.4.2'
-  - '@storybook/svelte@10.4.2'
-  - '@storybook/sveltekit@10.4.2'
-  - '@typescript-eslint/eslint-plugin@8.60.1'
-  - '@typescript-eslint/parser@8.60.1'
-  - '@typescript-eslint/project-service@8.60.1'
-  - '@typescript-eslint/scope-manager@8.60.1'
-  - '@typescript-eslint/tsconfig-utils@8.60.1'
-  - '@typescript-eslint/type-utils@8.60.1'
-  - '@typescript-eslint/types@8.60.1'
-  - '@typescript-eslint/typescript-estree@8.60.1'
-  - '@typescript-eslint/utils@8.60.1'
-  - '@typescript-eslint/visitor-keys@8.60.1'
-  - ag-charts-community@13.3.1
-  - ag-charts-core@13.3.1
-  - ag-charts-enterprise@13.3.1
-  - ag-charts-locale@13.3.1
-  - ag-charts-types@13.3.1
-  - ag-grid-community@35.3.1
-  - ag-grid-enterprise@35.3.1
-  - eslint-plugin-storybook@10.4.2
-  - storybook@10.4.2
-  - svelte@5.56.1
-  - typescript-eslint@8.60.1
-  - '@ag-grid-community/locale@35.3.1'
+minimumReleaseAge: 0
