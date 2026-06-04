@@ -111,7 +111,6 @@
 			// rendered under the header. Works against the name (not the full path),
 			// and AG Grid keeps the ancestors of any match visible in the tree.
 			filter: 'agTextColumnFilter',
-			floatingFilter: true,
 			filterValueGetter: (params) => params.data?.name ?? '',
 			cellRendererParams: {
 				suppressCount: false
