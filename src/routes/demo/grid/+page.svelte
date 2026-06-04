@@ -37,7 +37,7 @@
 		cell: Cell<Features, Deal, unknown>;
 	};
 
-	const data: Deal[] = [
+	const initialData: Deal[] = [
 		{
 			id: 'acme-analytics',
 			company: 'Acme Analytics',
@@ -94,6 +94,8 @@
 		}
 	];
 
+	let data = $state<Deal[]>(initialData.map((row) => ({ ...row })));
+
 	const columns: ColumnDef<Features, Deal>[] = [
 		{
 			accessorKey: 'company',
@@ -129,7 +131,9 @@
 
 	const table = createTable<Features, Deal>({
 		_features: features,
-		data,
+		get data() {
+			return data;
+		},
 		columns,
 		getRowId: (row) => row.id
 	});
